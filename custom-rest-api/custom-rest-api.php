@@ -8,3 +8,4 @@
 */
 
 require_once plugin_dir_path(__FILE__) . 'includes/class-rest-api.php';
+require_once plugin_dir_path(__FILE__) . 'includes/functions.php';
