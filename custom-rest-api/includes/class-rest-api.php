@@ -53,8 +53,6 @@ class Rest_api {
     ]);
   }
 
-
-
   public function get_author_published_posts($data) {
     $author_id = $data['id'];
     $args = [
@@ -78,7 +76,6 @@ class Rest_api {
     }
     return rest_ensure_response($data);
   }
-
 
   public function update_post_status($data) {
     $post_id = $data['id'];
@@ -196,7 +193,7 @@ class Rest_api {
       'post_id' => $post_id,
       'title' => $post->post_title,
       'author' => $post->post_author,
-      'author_name' => get_the_author_meta('display_name', $post->post_author),
+      // 'author_name' => get_the_author_meta('display_name', $post->post_author),
     ]);
   }
 }
