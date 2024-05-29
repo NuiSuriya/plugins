@@ -34,6 +34,23 @@ class Rest_api {
         return true; // Change this to set authentication later
       },
     ]);
+
+    // Create a new post for an author
+    register_rest_route('custom-rest-api/v1', 'author/(?P<id>\d+)/post', [
+      'methods' => 'POST',
+      'callback' => [$this, 'create_new_post'],
+      'args' => [
+        'id' => [
+          'required' => true,
+          'validate_callback' => function ($param) {
+            return is_numeric($param);
+          },
+        ],
+      ],
+      'permission_callback' => function () {
+        return true; // Change this to set authentication later
+      },
+    ]);
   }
 
 
@@ -154,6 +171,32 @@ class Rest_api {
     return rest_ensure_response([
       'message' => 'Author removed and posts reassigned successfully',
       'reassigned_posts' => $reassigned_posts,
+    ]);
+  }
+
+  public function create_new_post(WP_REST_Request $data) {
+    $author_id = $data['id'];
+    $params = $data->get_json_params(); //Only return params from body
+    $post_id = wp_insert_post([
+      'post_title' => $params['title'],
+      'post_content' => $params['content'],
+      'post_status' => 'publish',
+      'post_author' => $author_id,
+    ]);
+    // return $post_id;
+    if (is_wp_error($post_id)) {
+      return $post_id;
+    }
+
+    // Get created post
+    $post = get_post($post_id);
+
+    return rest_ensure_response([
+      'message' => 'Post created successfully',
+      'post_id' => $post_id,
+      'title' => $post->post_title,
+      'author' => $post->post_author,
+      'author_name' => get_the_author_meta('display_name', $post->post_author),
     ]);
   }
 }
