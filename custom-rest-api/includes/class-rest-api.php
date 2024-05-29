@@ -1,4 +1,5 @@
 <?php
+require_once(ABSPATH . 'wp-admin/includes/user.php'); // Include user.php for wp_delete_user function
 
 class Rest_api {
   // Constructor
@@ -19,6 +20,16 @@ class Rest_api {
     register_rest_route('custom-rest-api/v1', '/post/(?P<id>\d+)/status/(?P<status>\w+)', [
       'methods' => 'POST',
       'callback' => [$this, 'update_post_status'],
+      'permission_callback' => function () {
+        return true; // Change this to set authentication later
+      },
+    ]);
+
+    // Remove an author and reassign posts to a new author
+    // Can pass one of mutiple new author IDs separated by comma
+    register_rest_route('custom-rest-api/v1', '/author/(?P<id>\d+)/reassign/(?P<new_ids>[^/]+)', [
+      'methods' => 'POST',
+      'callback' => [$this, 'remove_author_and_reassign_posts'],
       'permission_callback' => function () {
         return true; // Change this to set authentication later
       },
@@ -89,12 +100,62 @@ class Rest_api {
     }
 
     return rest_ensure_response([
-      'message' => 'Post status updated successfully',
-      'post_id' => $post_id,
-      'post_title' => $post_after_update->post_title,
+      'message'     => 'Post status updated successfully',
+      'post_id'     => $post_id,
+      'post_title'  => $post_after_update->post_title,
       'post_status' => $post_after_update->post_status
     ]);
-}
+  }
+
+  public function remove_author_and_reassign_posts($data) {
+    $author_id = $data['id'];
+    $new_author_ids = explode(',', $data['new_ids']);
+
+    // Check if the author exists
+    $author = get_user_by('id', $author_id);
+    if (!$author) {
+      return new WP_Error('invalid_author', 'Author does not exist', ['status' => 400]);
+    }
+
+    // Check if the new authors exist
+    foreach ($new_author_ids as $new_author_id) {
+      $new_author = get_user_by('id', $new_author_id);
+      if (!$new_author) {
+        return new WP_Error('invalid_new_author', 'One or more new authors do not exist', ['status' => 400]);
+      }
+    }
+
+    // Get all posts of the author
+    $posts = get_posts(['author' => $author_id, 'post_type' => 'post', 'numberposts' => -1]);
+
+    $reassigned_posts = [];
+    // Reassign the posts to the new authors
+    foreach ($posts as $index => $post) {
+      $post_id = $post->ID;
+      $new_author_id = $new_author_ids[$index % count($new_author_ids)]; // Cycle through the new authors
+      wp_update_post([
+        'ID' => $post_id,
+        'post_author' => $new_author_id,
+      ]);
+
+      // Fetch the updated post
+      $updated_post = get_post($post_id);
+      // Add the reassigned post to the array
+      $reassigned_posts[] = [
+      // 'new_author_ids' => $new_author_ids,
+      'new_author_id' => $updated_post->post_author,
+      'title' => $updated_post->post_title,
+      ];
+    }
+
+    // Remove the author
+    wp_delete_user($author_id);
+
+    return rest_ensure_response([
+      'message' => 'Author removed and posts reassigned successfully',
+      'reassigned_posts' => $reassigned_posts,
+    ]);
+  }
 }
 
 new Rest_api();
